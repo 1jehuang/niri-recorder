@@ -282,7 +282,8 @@ class Recorder:
 
     def start_recording(self):
         """Start wf-recorder."""
-        cmd = ["wf-recorder", "-f", self.raw_video, "-y"]
+        # Use constant framerate and no-damage to reduce flickering
+        cmd = ["wf-recorder", "-f", self.raw_video, "-y", "-r", "30", "-D"]
         env = os.environ.copy()
 
         if self.config.nested and self.nested_wayland:

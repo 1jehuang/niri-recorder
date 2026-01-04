@@ -20,6 +20,12 @@ niri-recorder spawns a real Kitty terminal, controls it via remote socket, recor
 - wf-recorder
 - ffmpeg
 
+## Limitations
+
+**Recording requires focus**: wf-recorder captures the monitor output, not specific windows. The recording workspace must be visible during capture. This is a Wayland limitation - there's no way to record a workspace you're not looking at without a virtual/headless output.
+
+Future improvements could use PipeWire portal for window-specific capture.
+
 ## Install
 
 ```bash

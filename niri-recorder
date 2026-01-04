@@ -500,8 +500,12 @@ def interactive_mode(recorder: Recorder):
                     f.write(f"{c}: {a}\n")
             print(f"Saved {len(commands_log)} commands to {arg}")
             continue
-        elif cmd in ("type", "run", "key", "sleep", "terminal", "focus", "resize", "center", "fullscreen", "move"):
+        elif cmd in ("type", "run", "key", "terminal", "focus", "resize", "center", "fullscreen", "move"):
             commands_log.append((cmd, arg))
+            execute_commands(recorder, [(cmd, arg)])
+            print(f"  executed: {cmd} {arg}")
+        elif cmd == "sleep":
+            # Don't double-log sleep - just execute it
             execute_commands(recorder, [(cmd, arg)])
             print(f"  executed: {cmd} {arg}")
         else:

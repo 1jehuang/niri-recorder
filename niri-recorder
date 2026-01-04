@@ -44,6 +44,8 @@ class Recorder:
         # Multi-terminal support
         self.terminals: dict[str, int] = {}  # name -> window_id
         self.current_terminal: Optional[str] = None
+        # Terminal logging
+        self.terminal_logs: dict[str, str] = {}  # name -> log file path
 
     def run_niri(self, *args, nested=False):
         """Run a niri msg action command."""
@@ -136,7 +138,10 @@ class Recorder:
             # Get existing window IDs before spawning
             existing_ids = {w["id"] for w in self.get_windows(nested=True) if w.get("app_id") == "foot"}
 
-            subprocess.Popen(["foot"], env=env)
+            # Use script to log terminal output
+            log_file = f"/tmp/niri-recorder-{name}.log"
+            self.terminal_logs[name] = log_file
+            subprocess.Popen(["foot", "-e", "script", "-q", "-f", log_file], env=env)
             time.sleep(0.5)
 
             # Find the new window ID (one that didn't exist before)
@@ -335,6 +340,14 @@ class Recorder:
 
         size = os.path.getsize(self.config.output)
         print(f"Done! {self.config.output} ({size // 1024}KB)")
+
+    def get_terminal_log(self, name: str = "main") -> str:
+        """Get the logged output from a terminal."""
+        log_file = self.terminal_logs.get(name)
+        if log_file and os.path.exists(log_file):
+            with open(log_file, "r", errors="replace") as f:
+                return f.read()
+        return ""
 
     def cleanup(self):
         """Close the recording terminal and nested niri."""

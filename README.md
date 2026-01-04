@@ -109,6 +109,8 @@ niri-recorder demo.tape
 | `type` | `type: hello` | Type text without Enter |
 | `key` | `key: enter` | Send a key |
 | `sleep` | `sleep: 500ms` | Wait |
+| `terminal` | `terminal: editor` | Create or focus a named terminal |
+| `focus` | `focus: main` | Alias for terminal |
 
 ### Supported Keys
 
@@ -144,5 +146,31 @@ type: main
 sleep: 800ms
 
 key: escape
+sleep: 300ms
+```
+
+## Multi-Terminal Example
+
+Show two terminals side by side:
+
+```tape
+output: split-demo.gif
+nested: true
+width: 50%
+height: 80%
+
+# First terminal (auto-created as "main")
+run: vim app.py
+sleep: 500ms
+
+# Create second terminal
+terminal: shell
+run: python app.py
+sleep: 1s
+
+# Switch back to editor
+focus: main
+type: :wq
+key: enter
 sleep: 300ms
 ```

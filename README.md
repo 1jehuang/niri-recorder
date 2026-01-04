@@ -20,11 +20,22 @@ niri-recorder spawns a real Kitty terminal, controls it via remote socket, recor
 - wf-recorder
 - ffmpeg
 
-## Limitations
+## Nested Mode (Recommended)
 
-**Recording requires focus**: wf-recorder captures the monitor output, not specific windows. The recording workspace must be visible during capture. This is a Wayland limitation - there's no way to record a workspace you're not looking at without a virtual/headless output.
+Use `--nested` to run the recording inside a nested niri window. This way you can keep working while it records:
 
-Future improvements could use PipeWire portal for window-specific capture.
+```bash
+niri-recorder --nested demo.tape
+```
+
+Or in your tape file:
+```tape
+nested: true
+output: demo.gif
+...
+```
+
+The recording happens inside a nested niri compositor window, which you can move aside or minimize while it runs.
 
 ## Install
 
@@ -79,9 +90,10 @@ niri-recorder demo.tape
 | `output` | recording.gif | Output file path |
 | `width` | 80% | Window width |
 | `height` | 80% | Window height |
-| `workspace` | 9 | Workspace to record on |
+| `workspace` | 9 | Workspace to record on (non-nested mode) |
 | `fps` | 12 | GIF frame rate |
 | `scale` | 800 | GIF width in pixels |
+| `nested` | false | Run inside nested niri |
 
 ### Commands
 

@@ -151,37 +151,38 @@ class Recorder:
                 if name in self.terminals:
                     break
                 time.sleep(0.1)
-        else:
-            # Use kitty with remote control in normal mode
+            return  # Don't fall through to kitty mode
+
+        # Use kitty with remote control in normal mode (non-nested)
+        if os.path.exists(SOCKET_PATH):
+            os.remove(SOCKET_PATH)
+
+        proc = subprocess.Popen(
+            [
+                "kitty",
+                f"--listen-on=unix:{SOCKET_PATH}",
+                "--override", "allow_remote_control=yes"
+            ],
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
+
+        # Wait for socket
+        for _ in range(100):
             if os.path.exists(SOCKET_PATH):
-                os.remove(SOCKET_PATH)
+                break
+            time.sleep(0.1)
 
-            proc = subprocess.Popen(
-                [
-                    "kitty",
-                    f"--listen-on=unix:{SOCKET_PATH}",
-                    "--override", "allow_remote_control=yes"
-                ],
-                env=env,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE
-            )
+            if proc.poll() is not None:
+                stdout, stderr = proc.communicate()
+                raise RuntimeError(f"Kitty failed to start: {stderr.decode()}")
+        else:
+            raise RuntimeError("Kitty socket not created (timeout)")
 
-            # Wait for socket
-            for _ in range(100):
-                if os.path.exists(SOCKET_PATH):
-                    break
-                time.sleep(0.1)
-
-                if proc.poll() is not None:
-                    stdout, stderr = proc.communicate()
-                    raise RuntimeError(f"Kitty failed to start: {stderr.decode()}")
-            else:
-                raise RuntimeError("Kitty socket not created (timeout)")
-
-            time.sleep(0.5)
-            self.terminals[name] = 0  # Kitty mode doesn't track window IDs
-            self.current_terminal = name
+        time.sleep(0.5)
+        self.terminals[name] = 0  # Kitty mode doesn't track window IDs
+        self.current_terminal = name
 
     def focus_terminal(self, name: str):
         """Focus a terminal by name, spawning if needed."""

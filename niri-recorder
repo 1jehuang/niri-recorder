@@ -141,7 +141,15 @@ class Recorder:
             # Use script to log terminal output
             log_file = f"/tmp/niri-recorder-{name}.log"
             self.terminal_logs[name] = log_file
-            subprocess.Popen(["foot", "-e", "script", "-q", "-f", log_file], env=env)
+
+            # Build command that sets env vars and runs bash under script
+            # Use bash --norc to prevent bashrc from resetting WAYLAND_DISPLAY
+            nested_env = f"WAYLAND_DISPLAY={self.nested_wayland}"
+            if self.nested_socket:
+                nested_env += f" NIRI_SOCKET={self.nested_socket}"
+            cmd = f"env {nested_env} script -q -f {log_file} -c 'bash --norc'"
+
+            subprocess.Popen(["foot", "-e", "bash", "-c", cmd], env=env)
             time.sleep(0.5)
 
             # Find the new window ID (one that didn't exist before)

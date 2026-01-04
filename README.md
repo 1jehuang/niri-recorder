@@ -16,7 +16,9 @@ niri-recorder spawns a real Kitty terminal, controls it via remote socket, recor
 ## Requirements
 
 - Niri compositor
-- Kitty terminal
+- Kitty terminal (non-nested mode)
+- foot terminal (nested mode)
+- wtype (nested mode)
 - wf-recorder
 - ffmpeg
 
@@ -35,7 +37,11 @@ output: demo.gif
 ...
 ```
 
-The recording happens inside a nested niri compositor window, which you can move aside or minimize while it runs.
+**How it works:**
+- Spawns a nested niri compositor (runs as a window in your main session)
+- Recording and terminal automation happen entirely inside the nested compositor
+- Fully automatic - no clicking or selection required
+- You can minimize or move the nested window aside while it records
 
 ## Install
 

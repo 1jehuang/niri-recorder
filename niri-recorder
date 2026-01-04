@@ -304,19 +304,33 @@ class Recorder:
             self.recorder_proc.wait()
             time.sleep(0.3)
 
-    def convert_to_gif(self):
-        """Convert raw video to optimized GIF."""
-        print(f"Converting to {self.config.output}...")
-        subprocess.run([
-            "ffmpeg", "-y",
-            "-i", self.raw_video,
-            "-vf", f"fps={self.config.fps},scale={self.config.scale}:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse",
-            "-loop", "0",
-            self.config.output
-        ], check=True, capture_output=True)
+    def convert_output(self):
+        """Convert raw video to output format."""
+        output_ext = Path(self.config.output).suffix.lower()
 
-        # Cleanup
-        os.remove(self.raw_video)
+        if output_ext == ".gif":
+            print(f"Converting to GIF: {self.config.output}...")
+            subprocess.run([
+                "ffmpeg", "-y",
+                "-i", self.raw_video,
+                "-vf", f"fps={self.config.fps},scale={self.config.scale}:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse",
+                "-loop", "0",
+                self.config.output
+            ], check=True, capture_output=True)
+            os.remove(self.raw_video)
+        elif output_ext in (".mp4", ".webm", ".mkv"):
+            # Just move the raw video
+            import shutil
+            shutil.move(self.raw_video, self.config.output)
+        else:
+            # Use ffmpeg to convert
+            print(f"Converting to {self.config.output}...")
+            subprocess.run([
+                "ffmpeg", "-y",
+                "-i", self.raw_video,
+                self.config.output
+            ], check=True, capture_output=True)
+            os.remove(self.raw_video)
 
         size = os.path.getsize(self.config.output)
         print(f"Done! {self.config.output} ({size // 1024}KB)")
@@ -362,7 +376,7 @@ def parse_tape(tape_path: str) -> tuple[Config, list[tuple[str, str]]]:
 
             # Config options
             if cmd == "output":
-                config.output = arg
+                config.output = os.path.expanduser(arg)
             elif cmd == "width":
                 config.width = arg
             elif cmd == "height":
@@ -473,7 +487,7 @@ def main():
         print("Stopping recording...")
         recorder.stop_recording()
 
-        recorder.convert_to_gif()
+        recorder.convert_output()
 
     finally:
         if not args.no_cleanup:

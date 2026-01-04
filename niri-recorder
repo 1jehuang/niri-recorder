@@ -375,7 +375,7 @@ def parse_tape(tape_path: str) -> tuple[Config, list[tuple[str, str]]]:
             elif cmd == "nested":
                 config.nested = arg.lower() in ("true", "yes", "1")
             # Commands
-            elif cmd in ("type", "sleep", "key", "run", "terminal", "focus"):
+            elif cmd in ("type", "sleep", "key", "run", "terminal", "focus", "resize", "center", "move", "fullscreen"):
                 commands.append((cmd, arg))
 
     return config, commands
@@ -405,6 +405,30 @@ def execute_commands(recorder: Recorder, commands: list[tuple[str, str]]):
         elif cmd == "terminal" or cmd == "focus":
             # Switch to (or create) a named terminal
             recorder.focus_terminal(arg)
+
+        elif cmd == "resize":
+            # Resize window: "50% 80%" or "800px 600px"
+            parts = arg.split()
+            if len(parts) >= 1:
+                recorder.run_niri("set-window-width", parts[0], nested=recorder.config.nested)
+            if len(parts) >= 2:
+                recorder.run_niri("set-window-height", parts[1], nested=recorder.config.nested)
+            time.sleep(0.1)
+
+        elif cmd == "center":
+            recorder.run_niri("center-column", nested=recorder.config.nested)
+            time.sleep(0.1)
+
+        elif cmd == "move":
+            # Move window: left, right, up, down, or column-left, column-right
+            direction = arg.lower()
+            if direction in ("left", "right", "down", "up"):
+                recorder.run_niri(f"move-column-{direction}" if direction in ("left", "right") else f"move-window-{direction}", nested=recorder.config.nested)
+            time.sleep(0.1)
+
+        elif cmd == "fullscreen":
+            recorder.run_niri("fullscreen-window", nested=recorder.config.nested)
+            time.sleep(0.1)
 
 def main():
     parser = argparse.ArgumentParser(description="Automated screen recording for Niri")

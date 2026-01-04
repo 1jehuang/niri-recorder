@@ -97,32 +97,6 @@ class Recorder:
         print(f"Nested niri ready: display={self.nested_wayland}, window={self.nested_window_id}")
         time.sleep(0.3)
 
-    def get_nested_geometry(self) -> str:
-        """Get the geometry string for the nested niri window."""
-        result = subprocess.run(
-            ["niri", "msg", "-j", "windows"],
-            capture_output=True, text=True, check=True
-        )
-        windows = json.loads(result.stdout)
-
-        for w in windows:
-            if w["id"] == self.nested_window_id:
-                # Get window size
-                width = int(w["layout"]["window_size"][0])
-                height = int(w["layout"]["window_size"][1])
-
-                # For position, we need to focus and use slurp, or estimate
-                # For now, use slurp to select the window
-                print("Click on the nested niri window to select it for recording...")
-                result = subprocess.run(["slurp"], capture_output=True, text=True)
-                if result.returncode == 0:
-                    return result.stdout.strip()
-
-                # Fallback: assume it's visible and use its size
-                return f"0,0 {width}x{height}"
-
-        raise RuntimeError("Nested niri window not found")
-
     def spawn_terminal(self):
         """Spawn a terminal for recording."""
         env = os.environ.copy()
@@ -247,17 +221,17 @@ class Recorder:
     def start_recording(self):
         """Start wf-recorder."""
         cmd = ["wf-recorder", "-f", self.raw_video, "-y"]
+        env = os.environ.copy()
 
-        if self.config.nested and self.nested_window_id:
-            # Record just the nested niri window
-            geometry = self.get_nested_geometry()
-            cmd.extend(["-g", geometry])
+        if self.config.nested and self.nested_wayland:
+            # Run wf-recorder inside nested niri to capture full nested display
+            env["WAYLAND_DISPLAY"] = self.nested_wayland
         else:
             # Record the full output
             cmd.extend(["-o", "DP-1"])
 
         self.recorder_proc = subprocess.Popen(
-            cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env
         )
         time.sleep(0.5)
 

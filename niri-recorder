@@ -41,6 +41,9 @@ class Recorder:
         self.nested_wayland: Optional[str] = None
         self.nested_window_id: Optional[int] = None
         self.raw_video = "/tmp/niri-recorder-raw.mp4"
+        # Multi-terminal support
+        self.terminals: dict[str, int] = {}  # name -> window_id
+        self.current_terminal: Optional[str] = None
 
     def run_niri(self, *args, nested=False):
         """Run a niri msg action command."""
@@ -81,11 +84,13 @@ class Recorder:
                     self.nested_wayland = f
                     break
 
-            # Find nested niri socket
+            # Find nested niri socket (newer than our start, not the main one)
+            main_socket = os.environ.get("NIRI_SOCKET", "")
             for f in os.listdir("/run/user/1000"):
-                if f.startswith("niri.wayland-") and f != "niri.wayland-1.935.sock":
+                if f.startswith("niri.wayland-") and f != os.path.basename(main_socket):
                     sock = f"/run/user/1000/{f}"
-                    if sock != os.environ.get("NIRI_SOCKET"):
+                    # Check it corresponds to our nested wayland display
+                    if self.nested_wayland and f"niri.{self.nested_wayland}" in f:
                         self.nested_socket = sock
                         break
 
@@ -97,17 +102,55 @@ class Recorder:
         print(f"Nested niri ready: display={self.nested_wayland}, window={self.nested_window_id}")
         time.sleep(0.3)
 
-    def spawn_terminal(self):
-        """Spawn a terminal for recording."""
+    def get_windows(self, nested=False) -> list[dict]:
+        """Get list of windows from niri."""
+        env = os.environ.copy()
+        if nested and self.nested_socket:
+            env["NIRI_SOCKET"] = self.nested_socket
+        result = subprocess.run(
+            ["niri", "msg", "-j", "windows"],
+            capture_output=True, text=True, env=env
+        )
+        if result.returncode == 0:
+            return json.loads(result.stdout)
+        return []
+
+    def get_newest_foot_window(self, nested=False) -> Optional[int]:
+        """Find the most recently created foot window."""
+        windows = self.get_windows(nested)
+        foot_windows = [w for w in windows if w.get("app_id") == "foot"]
+        if foot_windows:
+            # Return highest ID (newest)
+            return max(w["id"] for w in foot_windows)
+        return None
+
+    def spawn_terminal(self, name: str = "default"):
+        """Spawn a named terminal for recording."""
         env = os.environ.copy()
 
         if self.config.nested and self.nested_wayland:
             # Use foot in nested mode (kitty has EGL issues in nested niri)
             env["WAYLAND_DISPLAY"] = self.nested_wayland
-            print(f"Spawning foot in nested niri ({self.nested_wayland})")
+            print(f"Spawning terminal '{name}' in nested niri")
+
+            # Get existing window IDs before spawning
+            existing_ids = {w["id"] for w in self.get_windows(nested=True) if w.get("app_id") == "foot"}
 
             subprocess.Popen(["foot"], env=env)
             time.sleep(0.5)
+
+            # Find the new window ID (one that didn't exist before)
+            for _ in range(10):
+                windows = self.get_windows(nested=True)
+                for w in windows:
+                    if w.get("app_id") == "foot" and w["id"] not in existing_ids:
+                        self.terminals[name] = w["id"]
+                        self.current_terminal = name
+                        print(f"  -> window id {w['id']}")
+                        break
+                if name in self.terminals:
+                    break
+                time.sleep(0.1)
         else:
             # Use kitty with remote control in normal mode
             if os.path.exists(SOCKET_PATH):
@@ -137,6 +180,24 @@ class Recorder:
                 raise RuntimeError("Kitty socket not created (timeout)")
 
             time.sleep(0.5)
+            self.terminals[name] = 0  # Kitty mode doesn't track window IDs
+            self.current_terminal = name
+
+    def focus_terminal(self, name: str):
+        """Focus a terminal by name, spawning if needed."""
+        if name not in self.terminals:
+            print(f"Creating new terminal '{name}'")
+            self.spawn_terminal(name)
+            self.setup_window()
+            return
+
+        if self.config.nested and name != self.current_terminal:
+            window_id = self.terminals[name]
+            print(f"Focusing terminal '{name}' (window {window_id})")
+            self.run_niri("focus-window", "--id", str(window_id), nested=True)
+            time.sleep(0.2)
+
+        self.current_terminal = name
 
     def setup_window(self):
         """Move terminal to recording workspace and size it."""
@@ -314,7 +375,7 @@ def parse_tape(tape_path: str) -> tuple[Config, list[tuple[str, str]]]:
             elif cmd == "nested":
                 config.nested = arg.lower() in ("true", "yes", "1")
             # Commands
-            elif cmd in ("type", "sleep", "key", "run"):
+            elif cmd in ("type", "sleep", "key", "run", "terminal", "focus"):
                 commands.append((cmd, arg))
 
     return config, commands
@@ -341,6 +402,10 @@ def execute_commands(recorder: Recorder, commands: list[tuple[str, str]]):
         elif cmd == "run":
             recorder.send_text(arg + "\r")
 
+        elif cmd == "terminal" or cmd == "focus":
+            # Switch to (or create) a named terminal
+            recorder.focus_terminal(arg)
+
 def main():
     parser = argparse.ArgumentParser(description="Automated screen recording for Niri")
     parser.add_argument("tape", help="Path to tape file")
@@ -363,7 +428,7 @@ def main():
             recorder.spawn_nested_niri()
 
         print("Spawning terminal...")
-        recorder.spawn_terminal()
+        recorder.spawn_terminal("main")
 
         print("Setting up window...")
         recorder.setup_window()
